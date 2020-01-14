@@ -25,7 +25,7 @@ class PerseptronModel:
 
     name = 'perseptron'
 
-    def __init__(self, video, skip=1, epochs=20, model=None):
+    def __init__(self, video, epochs=20, model=None):
         height, width, deep = video.imshape
         line_size = height * width * deep
 

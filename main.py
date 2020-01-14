@@ -17,10 +17,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     source = join(VPATH, args.file)
+    video = Video(source, skip=args.skip)
 
     load = args.load
     if not load:
-        net = PerseptronModel(source, skip=args.skip, epochs=args.epochs,)
+        net = PerseptronModel(video, epochs=args.epochs,)
     else:
         net = PerseptronModel.load_model()
 

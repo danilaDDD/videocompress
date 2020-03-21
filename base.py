@@ -5,9 +5,17 @@ from collections import deque
 import cv2
 import numpy as np
 
+from params import VPATH
+
 
 class Video(cv2.VideoCapture):
     codec = cv2.VideoWriter_fourcc(*'XVID')
+
+    @staticmethod
+    def get_test_video(frame_shape=(10, 10), size=10, file='test.avi'):
+        frames = np.random.randint(0, 255, (*frame_shape, size))
+        source = join(VPATH, file)
+        return Video(source, frames=frames)
 
     @staticmethod
     def __is_pressed_key(key):

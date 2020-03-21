@@ -1,6 +1,6 @@
 import numpy as np
-from keras.models import Sequential
-from keras.layers import Dense, Activation
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Activation
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from base import Video

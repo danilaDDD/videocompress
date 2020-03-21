@@ -1,3 +1,5 @@
+# VPATH = ''
+# MPATH = ''
 
 try:
     from local import *

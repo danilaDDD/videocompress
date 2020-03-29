@@ -1,8 +1,10 @@
 import numpy as np
+import os
 from matplotlib import pyplot as plt
 
 from backend import *
 from base import Video
+from local import VPATH
 from models import PerseptronModel
 
 
@@ -46,7 +48,14 @@ def simple_video_test(file_name='test.avi'):
     model.fit()
 
 
-if '__name__' == '__main__':
-    simple_video_test()
-    # keras_test()
+def model_test():
+    source_path = os.path.join(VPATH, 'random_video.avi')
+    video = Video(source_path)
+
+    model = PerseptronModel(video)
+    model = model.fit()
+    model.save()
+
+
+model_test()
 

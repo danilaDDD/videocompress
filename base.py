@@ -9,6 +9,7 @@ from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.pipeline import Pipeline
 
 from params import VPATH, MPATH
+from backend import mdls
 
 
 class Video(cv2.VideoCapture):
@@ -170,7 +171,7 @@ class BaseSkLayer(BaseEstimator, TransformerMixin):
         return None
 
     def save(self, *args):
-       pass
+        pass
 
     def load(self, *args):
         pass
@@ -178,7 +179,7 @@ class BaseSkLayer(BaseEstimator, TransformerMixin):
 
 class BasePassVideoLayers(BaseSkLayer):
 
-    def fit(self, video: Video) -> BaseSkLayer:
+    def fit(self, video: Video, y=None) -> BaseSkLayer:
         return self
 
     def transform(self, video: Video) -> np.ndarray:
@@ -202,10 +203,10 @@ class BaseKerasNeuralLayer(BaseSkLayer):
         super().__init__(context)
 
         if context is None:
-            self.model = self.build(*args, **kwargs)
+            self.model = self.load(*args, **kwargs)
 
         else:
-            self.model = self.load(*args, **kwargs)
+            self.model = self.build(*args, **kwargs)
 
         self.model.summary()
 
@@ -215,35 +216,38 @@ class BaseKerasNeuralLayer(BaseSkLayer):
         else:
             return self.model.predict(X)
 
-    def fit(self, frames, epochs, *args):
-        self.model.fit(frames, frames, epochs=epochs)
+    def fit(self, frames, y, **kwargs):
+        self.model.fit(frames, frames, epochs=self.context_params.epochs)
         return self
 
     def save(self, *args):
-        raise NotImplementedError('save layer not implemented')
+        saved_dir = self.context_params.saved_dir
+        saved_path = join(saved_dir, self.file_name)
+        self.model.save(self.saved_path)
 
-    def load(self, *args):
-        raise NotImplementedError('save layer not implemented')
+    def load(self, *args, **kwargs):
+        saved_dir = self.context_params.saved_dir
+        saved_path = join(saved_dir, self.file_name)
+        return mdls.load_model(saved_path)
 
 
 class BaseVideoModel:
     name = None
 
-    def __init__(self, video: Video, compress=2, is_scala=True, out_file_path=None, *args, **kwargs):
+    def __init__(self, video: Video = None, compress=2, is_scala=True, out_file_path=None, epochs=20, *args, **kwargs):
         self.__video = video
         self.__compress = compress
         self.__is_scala = is_scala
         self.__epochs = None
         self.__saved_dir = join(MPATH, self.name)
+        self.__epochs = epochs
 
         if out_file_path is None:
             self.__out_file_path = video.file
         else:
             self.__out_file_path = out_file_path
 
-
-    def fit(self, epochs=20, *args):
-        self.__epochs = epochs
+    def fit(self, **kwargs):
         return self
 
     @property
@@ -270,6 +274,10 @@ class BaseVideoModel:
     def out_file_name(self):
         return self.__out_file_path
 
+    @property
+    def epochs(self):
+        return self.__epochs
+
 
 class BasePipeVideoModel(BaseVideoModel):
     """implements:
@@ -283,19 +291,18 @@ class BasePipeVideoModel(BaseVideoModel):
     NeuralLayerClass = None
     OutputLayerClass = None
 
-    def __init__(self, video: Video, compress=2, is_scala=True, *args, **kwargs):
+    def __init__(self, video: Video=None, compress=2, is_scala=True, epochs=20, *args, **kwargs):
         """Create @pipe_model by @self=context and load"""
-        super().__init__(video, compress, is_scala, *args, **kwargs)
+        super().__init__(video, compress, is_scala, epochs, *args, **kwargs)
 
         if video:
             self.pipe_model = self.build(load=False)
         else:
             self.pipe_model = self.build(load=True)
 
-
-    def fit(self, epochs=20, *args):
-        self.pipe_model.fit(self.video, epochs)
-        return super().fit(epochs, *args)
+    def fit(self, **kwargs):
+        self.pipe_model.fit(self.video, y=1)
+        return self
 
     def save(self):
         for layer in self.pipe_model:
@@ -310,14 +317,8 @@ class BasePipeVideoModel(BaseVideoModel):
         else:
             context = self
 
-        self.pipe_model = Pipeline([
+        return Pipeline([
             ('video_input', self.InputLayerClass(context)),
             ('network', self.NeuralLayerClass(context)),
             ('output_video', self.OutputLayerClass(context))
         ])
-
-
-
-
-
-

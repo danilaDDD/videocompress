@@ -21,10 +21,10 @@ if __name__ == '__main__':
 
     load = args.load
     if not load:
-        net = PerseptronModel(video, epochs=args.epochs,)
+        net = PerseptronModel(video)
     else:
-        net = PerseptronModel.load_model()
+        net = PerseptronModel()
 
-    net.fit()
+    net.fit(epochs=20)
     if args.save:
         net.save()

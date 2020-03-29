@@ -1,11 +1,14 @@
+from abc import ABC
 from os.path import join
 import time
 from collections import deque
 
 import cv2
 import numpy as np
+from sklearn.base import TransformerMixin, BaseEstimator
+from sklearn.pipeline import Pipeline
 
-from params import VPATH
+from params import VPATH, MPATH
 
 
 class Video(cv2.VideoCapture):
@@ -143,5 +146,178 @@ class Video(cv2.VideoCapture):
     def __str__(self):
         a, b, c = self.imshape
         return "f{a};{b};{c}"
+
+
+class BaseSkLayer(BaseEstimator, TransformerMixin):
+    """
+        implement
+        @transform
+        @file_name
+        @save
+    """
+
+    file_name = None
+    context_params = None
+
+    def __init__(self, context_params=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.context_params = context_params
+
+    def fit(self, *args):
+        return self
+
+    def transform(self, *args):
+        return None
+
+    def save(self, *args):
+       pass
+
+    def load(self, *args):
+        pass
+
+
+class BasePassVideoLayers(BaseSkLayer):
+
+    def fit(self, video: Video) -> BaseSkLayer:
+        return self
+
+    def transform(self, video: Video) -> np.ndarray:
+        raise NotImplementedError('not implemented method')
+
+
+class BaseKerasNeuralLayer(BaseSkLayer):
+    """
+    implements
+    @build
+    @load
+    """
+
+    def build(self, *args, **kwargs):
+        raise NotImplementedError('not implemented build')
+
+    def load(self, *args, **kwargs):
+        raise NotImplementedError('not implemented build')
+
+    def __init__(self, context=None, *args, **kwargs):
+        super().__init__(context)
+
+        if context is None:
+            self.model = self.build(*args, **kwargs)
+
+        else:
+            self.model = self.load(*args, **kwargs)
+
+        self.model.summary()
+
+    def transform(self, X):
+        if self.model is None:
+            raise NotImplementedError('model not found')
+        else:
+            return self.model.predict(X)
+
+    def fit(self, frames, epochs, *args):
+        self.model.fit(frames, frames, epochs=epochs)
+        return self
+
+    def save(self, *args):
+        raise NotImplementedError('save layer not implemented')
+
+    def load(self, *args):
+        raise NotImplementedError('save layer not implemented')
+
+
+class BaseVideoModel:
+    name = None
+
+    def __init__(self, video: Video, compress=2, is_scala=True, out_file_path=None, *args, **kwargs):
+        self.__video = video
+        self.__compress = compress
+        self.__is_scala = is_scala
+        self.__epochs = None
+        self.__saved_dir = join(MPATH, self.name)
+
+        if out_file_path is None:
+            self.__out_file_path = video.file
+        else:
+            self.__out_file_path = out_file_path
+
+
+    def fit(self, epochs=20, *args):
+        self.__epochs = epochs
+        return self
+
+    @property
+    def video(self):
+        return self.__video
+
+    @property
+    def compress(self):
+        return self.__compress
+
+    @property
+    def is_scalar(self):
+        return self.__is_scala
+
+    @property
+    def epochs(self):
+        return self.__epochs
+
+    @property
+    def saved_dir(self):
+        return self.__saved_dir
+
+    @property
+    def out_file_name(self):
+        return self.__out_file_path
+
+
+class BasePipeVideoModel(BaseVideoModel):
+    """implements:
+    @InputLayerClass
+    @NeuralLayerClass
+    @OutputLayerClass
+    @name
+    """
+
+    InputLayerClass = None
+    NeuralLayerClass = None
+    OutputLayerClass = None
+
+    def __init__(self, video: Video, compress=2, is_scala=True, *args, **kwargs):
+        """Create @pipe_model by @self=context and load"""
+        super().__init__(video, compress, is_scala, *args, **kwargs)
+
+        if video:
+            self.pipe_model = self.build(load=False)
+        else:
+            self.pipe_model = self.build(load=True)
+
+
+    def fit(self, epochs=20, *args):
+        self.pipe_model.fit(self.video, epochs)
+        return super().fit(epochs, *args)
+
+    def save(self):
+        for layer in self.pipe_model:
+            layer.save(self.name)
+
+    def fit_transform(self, video: Video, *args):
+        return self.pipe_model.fit_transform(video, *args)
+
+    def build(self, load=False):
+        if load:
+            context = None
+        else:
+            context = self
+
+        self.pipe_model = Pipeline([
+            ('video_input', self.InputLayerClass(context)),
+            ('network', self.NeuralLayerClass(context)),
+            ('output_video', self.OutputLayerClass(context))
+        ])
+
+
+
+
 
 

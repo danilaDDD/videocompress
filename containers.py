@@ -1,14 +1,11 @@
-import numpy as np
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Activation
 from sklearn.base import BaseEstimator, TransformerMixin
+import numpy as np
 
-from base import Video
+from backend import *
+from base import *
 
 
-class PerseptronVideoInput(BaseEstimator, TransformerMixin):
-    def fit(self, video: Video, y=None):
-        return self
+class LinearizerVideoInput(BasePassVideoLayers):
 
     def transform(self, video: Video):
         a, b, c = video.imshape
@@ -17,51 +14,53 @@ class PerseptronVideoInput(BaseEstimator, TransformerMixin):
         return frames.reshape((n, a * b * c)) / 255
 
 
-class Perseptron(BaseEstimator, TransformerMixin):
-    def __init__(self, input: int = None, hiddens: list = None, epochs=50, batch_size=32, model=None):
-        super().__init__()
-        if model is None:
-            activ_str = 'sigmoid'
-            self.model = Sequential()
-            self.model.add(Dense(hiddens[0], input_shape=(input,), kernel_initializer='random_uniform'))
-            self.model.add(Activation(activ_str))
+class PerseptronLayer(BaseKerasNeuralLayer):
+    file_name = 'keras_model.h5'
 
-            if len(hiddens) > 1:
-                for hidden in hiddens[1:]:
-                    self.model.add(Dense(hidden, kernel_initializer='random_uniform'))
-                    self.model.add(Activation(activ_str))
+    def build(self, *args, **kwargs):
+        compress = self.context_params.compress
+        video = self.context_params.video
+        h, w = video.imshape
 
-            self.model.add(Dense(input))
-            self.model.add(Activation('softmax'))
-            self.model.compile(optimizer='rmsprop',
-                               loss='categorical_crossentropy',
-                               metrics=['accuracy'])
-            self.model.summary()
+        input_len = h*w
+        hidden_len = int(input_len / compress)
 
-        else:
-            self.model = model
-            self.model.summary()
+        model = mdls.Sequential()
 
-        self.__epochs = epochs
-        self.__batch_size = batch_size
+        model.add(lrs.Dense(hidden_len, input_shape=(input_len, )))
+        model.add(lrs.Activation('sigmoid'))
 
-    def fit(self, frames, y=None):
-        self.model.fit(frames, frames, epochs=self.__epochs)
-        return self
+        model.add(lrs.Dense(hidden_len))
+        model.add(lrs.Activation('sigmoid'))
 
-    def transform(self, frames):
-        return self.model.predict(frames)
+        model.add(lrs.Dense(input_len))
+        model.add(lrs.Activation('sigmoid'))
+
+        model.compile(
+            optimizer=optimizers.RMSprop,
+            loss=losses.binary_crossentropy,
+            metrics=[metrics.binary_accuracy]
+        )
+
+        return model
+
+    def save(self, *args):
+        saved_dir = self.context_params.saved_dir
+        self.saved_path = join(saved_dir, self.file_name)
+        self.model.save(self.saved_path)
+
+    def load(self, *args, **kwargs):
+        return mdls.load_model(self.saved_path)
 
 
-class PerseptronVideoOutput(BaseEstimator, TransformerMixin):
-    def __init__(self, file, shape):
-        super().__init__()
-        self.__file = file
-        self.__shape = shape
-
-    def fit(self, X, y):
-        return self
+class LinearizerVideoOutput(BasePassVideoLayers):
 
     def transform(self, frames):
-        (frame.reshape(self.__shape) for frame in frames)
-        return Video(self.__file, frames=frames)
+        video = self.context_params.video
+        imshape = video.imshape
+
+        (frame.reshape(imshape) for frame in frames)
+        return Video(self.context_params.out_file_path, frames=frames)
+
+
+
